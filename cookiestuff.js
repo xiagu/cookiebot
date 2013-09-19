@@ -1,14 +1,15 @@
 /* TODO:
  * 	 Update the cheatyBuy interval to depend on number of seconds remaining for purchase. Lower interval if low seconds (like 0), high interval if high seconds (maybe half? or 1/4th seconds? w/ minimum to avoid Zeno)
+ *   Related: make min of that or time to next golden cookie in case of lucky ?
  *	 Make cheatybuy computations less expensive in general... somehow
  *	 Fix trying to buy the Golden Cookie upgrades ASAP (makes resets dumb now that the count is maintained)
- *   Use fewer magic numbers in case the number of buildings changes again
  *   When taking into account the Lucky cookie minimum, consider how long until the next Golden Cookie and the chances of being a Lucky.
  */
 
 /* for manually stopping intervals later, if you want to do that */
 var goldenCookieInterval;
-var cheatyBuyInterval;
+var cheatyBuyTimeout;
+var keepBuying = true;
 /* for timing CPS */
 var start;
 var oldCE;
@@ -28,7 +29,7 @@ function everything() {
 	    if (t == "up") {
 	        n = Seconds_Left(e, "up");
 	        r = Game.UpgradesById[e].basePrice;
-	        for (var s = 0; s < 29; s++) {
+	        for (var s = 0; s < upgrade_count; s++) {
 	            if (_cup(s, e, false)) {
 	                i = Manage_Tooltip(s, e, false, true);
 	                break
@@ -83,25 +84,24 @@ function everything() {
 		min = Number.MAX_VALUE;
 		savedName = "";
 		savedPrice = Number.MAX_VALUE;
-		savedIncome = 0;
+		savedIncome = 0; 
+		savedTime = 0; // seconds until we can buy
 		/* Check items to buy */
-		for(var i=0; i<=9; i++) {
-			// name = $("#cookie_monster_item_"+i).text().match(/([^(]*) \(/)[1];
+		for(var i=0; i<Game.ObjectsN; i++) {
 			name = Game.ObjectsById[i].name;
-			// value = parseCMNums($("#cookie_monster_cpi_"+i).text());
 			value = Get_True_CPI(i, "ob");
-			income = parseCMNums($("#cookie_monster_is_"+i).text());
+			income = hold_is[i];
 			if(value < min || (value == min && Game.ObjectsById[i].price < savedPrice)) {
 				savedName = name;
 				min = value;
 				savedObject = Game.ObjectsById[i];
 				savedIncome = income;
 				savedPrice = savedObject.price;
+				savedTime = hold_tc[i];
 			}
 		}
 		/* Check available upgrades */
 		Game.UpgradesInStore.forEach(function (t, n) {
-	        $("#upgrade"+n).mouseover();
 			id = t.id;
 			name = t.name;
 			if(id == 52 || id == 53 || id == 74 || id == 86 || id == 87) {
@@ -109,10 +109,14 @@ function everything() {
 				value = Number.MIN_VALUE; /* always buy these basically ASAP */
 				income = 0;
 			} else {
-	        	ttvars = $("#cm_up_div_"+id).text().match(/Bonus Income([\d,. *]+?)Base Cost Per Income([\d,. *]+?|Infinity)Time Left(.+)/);
-				// value = parseCMNums(ttvars[2]);
+	        	// Instead of showing the tooltip and regexping it we call Cookie Monster's internal computation functions to get the income
 				value = Get_True_CPI(id, "up");
-				income = parseCMNums(ttvars[1]);
+				for (var s = 0; s < upgrade_count; s++) {
+	            	if (_cup(s, t.id, false)) {
+		                income = Manage_Tooltip(s, t.id, false, true);
+	                	break;
+            		}
+        		}
 			}
 			if(value < min || (value == min && t.basePrice < savedPrice)) {
 				savedName = name;
@@ -120,9 +124,9 @@ function everything() {
 				savedIncome = income;
 				min = value;
 				savedPrice = t.basePrice;
+				savedTime = Seconds_Left(t.id, "up");
 			}
 	    });
-	    Game.tooltip.hide();
 
 	    // console.log(savedObject);
 		var reqBank = gcbank(savedIncome);
@@ -131,8 +135,15 @@ function everything() {
 		if((Game.cookies - savedPrice) >= reqBank) {
 			savedObject.buy();
 		}
+
+		if(keepBuying) {
+			waitTime = Math.max(savedTime / 2.0, 0.5);
+			console.log("Checking again in " + formatTime(waitTime, null));
+			clearTimeout(cheatyBuyTimeout); // just in case we want to restart the timer, for instance, some big change happened
+			cheatyBuyTimeout = setTimeout(function() { cheatyBuy(); }, waitTime*1000);
+		}
 	}
-	cheatyBuyInterval = setInterval(function () { cheatyBuy(); }, 1000);
+	cheatyBuy();
 
 	/* Autobuy elder pledges */
 	// buyElderPledge = function () {
