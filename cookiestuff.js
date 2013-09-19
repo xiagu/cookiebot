@@ -1,5 +1,6 @@
 /* TODO:
  * 	 Update the cheatyBuy interval to depend on number of seconds remaining for purchase. Lower interval if low seconds (like 0), high interval if high seconds (maybe half? or 1/4th seconds? w/ minimum to avoid Zeno)
+ *	 Make cheatybuy computations less expensive in general... somehow
  *	 Fix trying to buy the Golden Cookie upgrades ASAP (makes resets dumb now that the count is maintained)
  *   Use fewer magic numbers in case the number of buildings changes again
  *   When taking into account the Lucky cookie minimum, consider how long until the next Golden Cookie and the chances of being a Lucky.
@@ -14,7 +15,7 @@ var oldCE;
 
 function everything() { 
 	/* Give CM a little time to load */
-	/* Fix Get_True_CPI, the one included in Cookie Monster is both unused and broken */
+	/* Fix Get_True_CPI, the one included in Cookie Monster is both unused and broken  (as of Cookie Monster 1.35.04, approximately) */
 	Get_True_CPI = function(e, t) {
 	    var n = 0;
 	    var r = 0;
@@ -108,7 +109,7 @@ function everything() {
 				value = Number.MIN_VALUE; /* always buy these basically ASAP */
 				income = 0;
 			} else {
-	        	ttvars = $("#cm_up_div_"+id).text().match(/Bonus Income([\d,. *]+?)Base Cost Per Income([\d,. *]+?|Infinity)Seconds Left([\d,. *]+)/);
+	        	ttvars = $("#cm_up_div_"+id).text().match(/Bonus Income([\d,. *]+?)Base Cost Per Income([\d,. *]+?|Infinity)Time Left(.+)/);
 				// value = parseCMNums(ttvars[2]);
 				value = Get_True_CPI(id, "up");
 				income = parseCMNums(ttvars[1]);
