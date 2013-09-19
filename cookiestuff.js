@@ -1,7 +1,7 @@
 /* TODO:
- * 	 Update the cheatyBuy interval to depend on number of seconds remaining for purchase. Lower interval if low seconds (like 0), high interval if high seconds (maybe half? or 1/4th seconds? w/ minimum to avoid Zeno)
+ * 	 Update Golden Cookie autoclick to take into account time to next GC
  *   Related: make min of that or time to next golden cookie in case of lucky ?
- *	 Make cheatybuy computations less expensive in general... somehow
+ *	 Make cheatyBuy computations less expensive in general... somehow
  *	 Fix trying to buy the Golden Cookie upgrades ASAP (makes resets dumb now that the count is maintained)
  *   When taking into account the Lucky cookie minimum, consider how long until the next Golden Cookie and the chances of being a Lucky.
  */
@@ -9,6 +9,7 @@
 /* for manually stopping intervals later, if you want to do that */
 var goldenCookieInterval;
 var cheatyBuyTimeout;
+var buyElderPledgeTimeout;
 var keepBuying = true;
 /* for timing CPS */
 var start;
@@ -59,7 +60,7 @@ function everything() {
 	oldCE = Game.cookiesEarned;
 	cpsMeasure = function() {
 		var date = new Date();
-		console.log("Running average CPS since " + start.toLocaleTimeString() + " = " + (Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime()));
+		console.log("Running average CPS since " + start.toLocaleTimeString() + " = " + formatNum((Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime())));
 		setTimeout(cpsMeasure, 10000);
 	}
 	cpsMeasure(); /* Start */
@@ -76,8 +77,9 @@ function everything() {
 		else { return 0; }
 		if(Game.UpgradesById[86].bought) { gcfactor *= 7; }
 		
-		Game.CalculateGains();
-		return ((Game.cookiesPs + income) / (Game.frenzy > 0 ? Game.frenzyPower : 1))*gcfactor;
+		Game.CalculateGains(); // recalc to avoid errors in computation
+		realCps = (Game.cookiesPs + income) / (Game.frenzy > 0 ? Game.frenzyPower : 1); // CpS unmodified by frenzy
+		return [realCps, realCps*gcfactor];
 	}
 
 	cheatyBuy = function() {
@@ -106,7 +108,19 @@ function everything() {
 			name = t.name;
 			if(id == 52 || id == 53 || id == 74 || id == 86 || id == 87) {
 				/* Golden cookie upgrades, Elder Pledge and Sacrificial Rolling Pins */
-				value = Number.MIN_VALUE; /* always buy these basically ASAP */
+				switch(id) {
+				case 52: // Lucky Day
+					value = 100;
+					break;
+				case 53: // Serendipity
+					value = 500; // made up values to try to price it right
+					break;
+				case 86: // Get Lucky
+					value = 1000;
+					break;
+				default:
+					value = Number.MIN_VALUE;
+				}
 				income = 0;
 			} else {
 	        	// Instead of showing the tooltip and regexping it we call Cookie Monster's internal computation functions to get the income
@@ -129,15 +143,26 @@ function everything() {
 	    });
 
 	    // console.log(savedObject);
-		var reqBank = gcbank(savedIncome);
-		console.log( (Game.cookies - savedPrice) + " remaining, need more than " + reqBank + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + ((Game.cookies - savedPrice) > reqBank));
+		var bank = gcbank(savedIncome);
+		var realCps = bank[0];
+		var reqBank = bank[1];
+		
+		willBuy = (Game.cookies - savedPrice) >= reqBank || (Game.goldenCookie.delay / Game.fps) * (realCps) - savedPrice > 0;
+		console.log( (Game.cookies - savedPrice) + " remaining, need more than " + reqBank + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + willBuy);
 
-		if((Game.cookies - savedPrice) >= reqBank) {
+		if(willBuy) {
 			savedObject.buy();
 		}
 
 		if(keepBuying) {
-			waitTime = Math.max(savedTime / 2.0, 0.5);
+			
+			if(savedTime == 0)
+				if(willBuy == false)
+					waitTime = 5; // don't spam when we are building bank for GCs
+				else
+					waitTime = 0.25; // check faster to use up bank faster if we have surplus
+			else 
+				waitTime = Math.max(savedTime / 2.0, 0.5);
 			console.log("Checking again in " + formatTime(waitTime, null));
 			clearTimeout(cheatyBuyTimeout); // just in case we want to restart the timer, for instance, some big change happened
 			cheatyBuyTimeout = setTimeout(function() { cheatyBuy(); }, waitTime*1000);
@@ -146,12 +171,13 @@ function everything() {
 	cheatyBuy();
 
 	/* Autobuy elder pledges */
-	// buyElderPledge = function () {
-	// 	if(Game.UpgradesInStore[0].name == "Elder Pledge") {
-	// 		Game.UpgradesInStore[0].buy();
-	// 	}
-	// }
-	// var elderPledgeInterval = setInterval(buyElderPledge, 5000);
+	buyElderPledge = function () {
+		if(Game.UpgradesById[74].bought == 0 && Game.UpgradesById[74].unlocked == 1) {
+			Game.UpgradesById[74].buy();
+		}
+		buyElderPledgeTimeout = setTimeout(function() { buyElderPledge(); }, Game.pledgeT / Game.fps);
+	}
+	buyElderPledge();
 
 }
 
