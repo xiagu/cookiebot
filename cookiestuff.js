@@ -5,6 +5,7 @@
  *	 Fix trying to buy the Golden Cookie upgrades ASAP (makes resets dumb now that the count is maintained)
  *   When taking into account the Lucky cookie minimum, consider how long until the next Golden Cookie and the chances of being a Lucky.
  *   Handle the Grandmapocalypse Wrath cookies in predictions and computations
+ *		For instance we probably shouldn't click cookies that show up during a Clot.
  */
 
 /* for manually stopping intervals later, if you want to do that */
@@ -22,8 +23,12 @@ var ID_LUCKY_DAY = 52,
 	ID_GET_LUCKY = 86,
 	ID_SACRIFICIAL_ROLLING_PINS = 87;
 
+/* Called after Cookie Monster is loaded */
 function everything() { 
-	/* Give CM a little time to load */
+
+	/* Remove the alert box, since it requires human interaction to confirm and that will impede our automated cookie-making */
+	Game.Upgrades['One mind'].clickFunction = null;
+
 	/* Fix Get_True_CPI, the one included in Cookie Monster is both unused and broken  (as of Cookie Monster 1.35.04, approximately) */
 	Get_True_CPI = function(e, t) {
 	    var n = 0;
