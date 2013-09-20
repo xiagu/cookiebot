@@ -67,19 +67,6 @@ function everything() {
 	    return o
 	}
 
-	/* Measure true CPS, including golden cookie contributions */
-	start = new Date();
-	oldCE = Game.cookiesEarned;
-	cpsMeasure = function() {
-		var date = new Date();
-		avg = formatNum((Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime()));
-		var realCps = gcbank(0)[0];
-		estimate = formatNum(realCps + goldenCookieCps(realCps,Game.cookies));
-		console.log("Running average CPS since " + start.toLocaleTimeString() + " = " + avg + " \tEstimated CPS: " + estimate);
-		setTimeout(cpsMeasure, 10000);
-	}
-	cpsMeasure(); /* Start */
-
 	goldenCookieInterval = setInterval(function () { if(Game.goldenCookie.life > 0) { Game.goldenCookie.click(); } }, 1000);
 
 	parseCMNums = function(str) { return parseFloat(str.replace(/[, *]/g,'')); }
@@ -125,6 +112,19 @@ function everything() {
 
 		return payoff;
 	}
+
+	/* Measure true CPS, including golden cookie contributions */
+	start = new Date();
+	oldCE = Game.cookiesEarned;
+	cpsMeasure = function() {
+		var date = new Date();
+		avg = formatNum((Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime()));
+		var realCps = gcbank(0)[0];
+		estimate = formatNum(realCps + goldenCookieCps(realCps,Game.cookies));
+		console.log("Running average CPS since " + start.toLocaleTimeString() + " = " + avg + " \tEstimated CPS: " + estimate);
+		setTimeout(cpsMeasure, 10000);
+	}
+	cpsMeasure(); /* Start */
 
 	cheatyBuy = function() {
 		min = Number.MAX_VALUE;
