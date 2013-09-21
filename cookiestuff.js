@@ -76,7 +76,6 @@ function everything() {
 		gcfactor = 0;
 		if(Game.UpgradesById[ID_SERENDIPITY].bought) { gcfactor = 12000; }
 		else if(Game.UpgradesById[ID_LUCKY_DAY].bought) { gcfactor = 6000; }
-		else { return 0; }
 		if(Game.UpgradesById[ID_GET_LUCKY].bought) { gcfactor *= 7; }
 		
 		Game.CalculateGains(); // recalc to avoid errors in computation
@@ -95,7 +94,8 @@ function everything() {
 		if(Game.UpgradesById[ID_GET_LUCKY].bought) {
 			// these percentages calculated from a sample of 10 million golden cookies
 			// now they can overlap
-			payoff += .00456545455 * 3228721333325.41 // chain cookie (average)
+			if(Game.cookiesEarned > 100000)
+				payoff += .00456545455 * 3228721333325.41 // chain cookie (average)
 			payoff += .01719354545 * 0 // click frenzy
 			payoff += .48630509091 * 6 * cps * 77 // frenzy
 			payoff += .00566790909 * 0 // frenzy + click frenzy
@@ -106,7 +106,8 @@ function everything() {
 			payoff += .4900417 * 6 * cps * 77 // frenzy
 			payoff += .4900417 * ( Math.min(.1*bank, 1200*cps) + 13 ) // multiply cookies
 			payoff += .016625 * 0 // click frenzy
-			payoff += .0032916 * 3228721333325.41 // chain cookie (average)
+			if(Game.cookiesEarned > 100000)
+				payoff += .0032916 * 3228721333325.41 // chain cookie (average)
 		}
 		payoff /= interval;
 
@@ -154,13 +155,13 @@ function everything() {
 			switch(id) {
 			/* Golden cookie upgrades, Elder Pledge and Sacrificial Rolling Pins */
 			case ID_LUCKY_DAY: // Lucky Day
-				value = 100;
+				value = 1000;
 				break;
 			case ID_SERENDIPITY: // Serendipity
-				value = 500; // made up values to try to price it right
+				value = 5000; // made up values to try to price it right
 				break;
 			case ID_GET_LUCKY: // Get Lucky
-				value = 1000;
+				value = 10000;
 				break;
 			case ID_ELDER_PLEDGE:
 			case ID_SACRIFICIAL_ROLLING_PINS:
