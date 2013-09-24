@@ -85,17 +85,19 @@ function everything() {
 		return [realCps, (realCps+realIncome)*gcfactor, realIncome];
 	}
 
-	goldenCookieCps = function(cps, bank) {
+	goldenCookieCps = function(cps, bank, lucky_day, serendipity, get_lucky) {
 		interval = 570; // average time in seconds for a golden cookie to appear
-		if(Game.UpgradesById[ID_LUCKY_DAY].bought) interval /= 2.0;
-		if(Game.UpgradesById[ID_SERENDIPITY].bought) interval /= 2.0;
+		if(lucky_day) interval /= 2.0;
+		if(serendipity) interval /= 2.0;
 
 		payoff = 0;
-		if(Game.UpgradesById[ID_GET_LUCKY].bought) {
+		if(get_lucky) {
 			// these percentages calculated from a sample of 10 million golden cookies
 			// now they can overlap
-			if(Game.cookiesEarned > 100000)
-				payoff += .00456545455 * 3228721333325.41 // chain cookie (average)
+
+			// chain cookie is more complicated, it can't give you more than when you started
+			// if(Game.cookiesEarned > 100000)
+			// 	payoff += .00456545455 * 3228721333325.41 // chain cookie (average)
 			payoff += .01719354545 * 0 // click frenzy
 			payoff += .48630509091 * 6 * cps * 77 // frenzy
 			payoff += .00566790909 * 0 // frenzy + click frenzy
@@ -106,12 +108,17 @@ function everything() {
 			payoff += .4900417 * 6 * cps * 77 // frenzy
 			payoff += .4900417 * ( Math.min(.1*bank, 1200*cps) + 13 ) // multiply cookies
 			payoff += .016625 * 0 // click frenzy
-			if(Game.cookiesEarned > 100000)
-				payoff += .0032916 * 3228721333325.41 // chain cookie (average)
+			// chain cookie is distorting income right now
+			// if(Game.cookiesEarned > 100000)
+			// 	payoff += .0032916 * 3228721333325.41 // chain cookie (average)
 		}
 		payoff /= interval;
 
 		return payoff;
+	}
+
+	myGoldenCookieCps = function(cps, bank) {
+		return goldenCookieCps(cps, bank, Game.UpgradesById[ID_LUCKY_DAY].bought, Game.UpgradesById[ID_SERENDIPITY].bought, Game.UpgradesById[ID_GET_LUCKY].bought);
 	}
 
 	/* Measure true CPS, including golden cookie contributions */
@@ -121,7 +128,7 @@ function everything() {
 		var date = new Date();
 		avg = formatNum((Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime()));
 		var realCps = gcbank(0)[0];
-		estimate = formatNum(realCps + goldenCookieCps(realCps,Game.cookies));
+		estimate = formatNum(realCps + myGoldenCookieCps(realCps,Game.cookies));
 		console.log("Running average CPS since " + start.toLocaleTimeString() + " = " + avg + " \tEstimated CPS: " + estimate);
 		setTimeout(cpsMeasure, 10000);
 	}
@@ -147,21 +154,40 @@ function everything() {
 				savedTime = hold_tc[i];
 			}
 		}
+
+		// need for golden cookie upgrade calculations
+		var bank = gcbank(savedIncome);
+		var realCps = bank[0];
+		var reqBank = bank[1];
+		var realIncome = bank[2];
+		
+		myCookies = Game.cookies;
+
 		/* Check available upgrades */
 		Game.UpgradesInStore.forEach(function (t, n) {
 			id = t.id;
 			name = t.name;
 			income = 0;
+
 			switch(id) {
 			/* Golden cookie upgrades, Elder Pledge and Sacrificial Rolling Pins */
 			case ID_LUCKY_DAY: // Lucky Day
-				value = 1000;
+				income = goldenCookieCps(realCps, myCookies, true, Game.UpgradesById[ID_SERENDIPITY].bought, Game.UpgradesById[ID_GET_LUCKY].bought)
+				 - goldenCookieCps(realCps, myCookies, false, Game.UpgradesById[ID_SERENDIPITY].bought, Game.UpgradesById[ID_GET_LUCKY].bought);
+				income = Math.max(income, 0);
+				value = Game.UpgradesById[id].basePrice / income;
 				break;
 			case ID_SERENDIPITY: // Serendipity
-				value = 5000; // made up values to try to price it right
+				income = goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, true, Game.UpgradesById[ID_GET_LUCKY].bought)
+				 - goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, false, Game.UpgradesById[ID_GET_LUCKY].bought);
+				income = Math.max(income, 0);
+				value = Game.UpgradesById[id].basePrice / income;
 				break;
 			case ID_GET_LUCKY: // Get Lucky
-				value = 10000;
+				income = goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, Game.UpgradesById[ID_SERENDIPITY].bought, true) 
+				- goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, Game.UpgradesById[ID_SERENDIPITY].bought, false);
+				income = Math.max(income, 0);
+				value = Game.UpgradesById[id].basePrice / income;
 				break;
 			case ID_ELDER_PLEDGE:
 			case ID_SACRIFICIAL_ROLLING_PINS:
@@ -187,17 +213,16 @@ function everything() {
 			}
 	    });
 
-	    // console.log(savedObject);
+		// need for golden cookie upgrade calculations
 		var bank = gcbank(savedIncome);
 		var realCps = bank[0];
 		var reqBank = bank[1];
 		var realIncome = bank[2];
-		
-		myCookies = Game.cookies;
+
 		willBuy = ( (myCookies - savedPrice) >= reqBank ) ||
 			( (Game.goldenCookie.delay / Game.fps) * (realCps+realIncome) - savedPrice > 0 ) ||
 			// ( (reqBank > myCookies) && (reqBank - myCookies) / realCps > (reqBank - myCookies + savedPrice) / (realCps + realIncome) );
-			( realIncome + goldenCookieCps(realCps+realIncome, myCookies - savedPrice) > goldenCookieCps(realCps, myCookies) );
+			( realIncome + myGoldenCookieCps(realCps+realIncome, myCookies - savedPrice) > myGoldenCookieCps(realCps, myCookies) );
 		console.log( formatNum(myCookies - savedPrice) + " remaining, need more than " + formatNum(reqBank) + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + willBuy);
 
 		if(willBuy)
