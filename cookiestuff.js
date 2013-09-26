@@ -223,8 +223,7 @@ function everything() {
 			( (Game.goldenCookie.delay / Game.fps) * (realCps+realIncome) - savedPrice > 0 ) ||
 			// ( (reqBank > myCookies) && (reqBank - myCookies) / realCps > (reqBank - myCookies + savedPrice) / (realCps + realIncome) );
 			( realIncome + myGoldenCookieCps(realCps+realIncome, myCookies - savedPrice) > myGoldenCookieCps(realCps, myCookies) );
-		console.log( formatNum(myCookies - savedPrice) + " remaining, need more than " + formatNum(reqBank) + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + willBuy);
-
+		
 		if(willBuy)
 			savedObject.buy();
 
@@ -236,7 +235,7 @@ function everything() {
 					waitTime = 0.25; // check faster to use up bank faster if we have surplus
 			else 
 				waitTime = Math.min(Math.max(savedTime / 2.0, 0.5), 1800); // check at least once every 30 minutes
-			console.log("Checking again in " + formatTime(waitTime, null));
+			console.log( formatNum(myCookies - savedPrice) + " remaining, need more than " + formatNum(reqBank) + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + willBuy + ";\tChecking again in " + formatTime(waitTime, null));
 			clearTimeout(cheatyBuyTimeout); // just in case we want to restart the timer, for instance, some big change happened
 			cheatyBuyTimeout = setTimeout(function() { cheatyBuy(); }, waitTime*1000);
 		}
