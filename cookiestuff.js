@@ -12,10 +12,15 @@
 var goldenCookieInterval;
 var cheatyBuyTimeout;
 var buyElderPledgeTimeout;
+var autoClickTimeout;
 var keepBuying = true;
 /* for timing CPS */
 var start;
 var oldCE;
+
+var mouseCps;// GLOBAL VARS ARE GREAT YEAH WOOO
+
+var avgClicksPS = 5;
 
 var ID_LUCKY_DAY = 52,
 	ID_SERENDIPITY = 53,
@@ -35,25 +40,27 @@ function everything() {
 	    var r = 0;
 	    var i = 0;
 	    if (t == "ob") {
-	        n = Seconds_Left(e, "ob");
+	        n = My_Seconds_Left(e, "ob");
 	        r = Game.ObjectsById[e].price;
 	        i = hold_is[e]
 	    }
 	    if (t == "up") {
-	        n = Seconds_Left(e, "up");
+	        n = My_Seconds_Left(e, "up");
 	        r = Game.UpgradesById[e].basePrice;
 	        for (var s = 0; s < upgrade_count; s++) {
-	            if (_cup(s, e, false)) {
-	                i = Manage_Tooltip(s, e, false, true);
-	                break
-	            }
+	            if (_cup(s, e, true)) {
+		            if (!Game.UpgradesById[e].bought) {
+		                i = Manage_Tooltip(s, e, false, true);
+		                break;
+		            }
+		        }
 	        }
 	    }
 	    var o = r / i;
 	    Game.ObjectsById.forEach(function (s, u) {
 	        var a = s.price;
 	        var f = hold_is[u];
-	        var l = Seconds_Left(u, "ob");
+	        var l = My_Seconds_Left(u, "ob");
 	        if (l < n && (t == "up" || u != e)) {
 	            var c = n - l;
 	            var h = f * c;
@@ -64,8 +71,30 @@ function everything() {
 	            }
 	        } else {}
 	    });
-	    return o
+	    return o;
 	}
+
+	My_Seconds_Left = function(id, t) {
+	  var n = 0;
+	  if (t == "ob") {
+	    n = Game.ObjectsById[id].price
+	  }
+	  if (t == "up") {
+	    n = Game.UpgradesById[id].basePrice
+	  }
+	  var r = Game.cookies - n;
+	  var i = realCps;
+	  if (i == 0) {
+	    return 0
+	  }
+	  if (r < 0) {
+	    var s = n / i;
+	    var o = r * -1 / i;
+	    return o
+	  }
+	  return 0
+	}
+
 
 	goldenCookieInterval = setInterval(function () { if(Game.goldenCookie.life > 0) { Game.goldenCookie.click(); } }, 1000);
 
@@ -81,6 +110,8 @@ function everything() {
 		Game.CalculateGains(); // recalc to avoid errors in computation
 		trueFrenzy = Game.frenzy > 0 ? Game.frenzyPower : 1;
 		realCps = Game.cookiesPs / trueFrenzy; // CpS unmodified by frenzy
+		mouseCps = Game.computedMouseCps * avgClicksPS / trueFrenzy;
+		realCps += mouseCps; // include our autoclicking
 		realIncome = income / trueFrenzy;
 		return [realCps, (realCps+realIncome)*gcfactor, realIncome];
 	}
@@ -98,16 +129,16 @@ function everything() {
 			// chain cookie is more complicated, it can't give you more than when you started
 			// if(Game.cookiesEarned > 100000)
 			// 	payoff += .00456545455 * 3228721333325.41 // chain cookie (average)
-			payoff += .01719354545 * 0 // click frenzy
+			payoff += .01719354545 * 776 * mouseCps * 27 // click frenzy
 			payoff += .48630509091 * 6 * cps * 77 // frenzy
-			payoff += .00566790909 * 0 // frenzy + click frenzy
+			payoff += .00566790909 * 6 * 776 * mouseCps * 27 // frenzy + click frenzy
 			payoff += .21267009091 * ( Math.min(.1*bank, 8400*cps) + 13 ) // frenzy + multiply cookies
 			payoff += .27359790909 * ( Math.min(.1*bank, 1200*cps) + 13 ) // multiply cookies
 		} else {
 			// these percentages taken from the wiki, in theory should be accurate
 			payoff += .4900417 * 6 * cps * 77 // frenzy
 			payoff += .4900417 * ( Math.min(.1*bank, 1200*cps) + 13 ) // multiply cookies
-			payoff += .016625 * 0 // click frenzy
+			payoff += .016625 * 776 * mouseCps * 27 // click frenzy
 			// chain cookie is distorting income right now
 			// if(Game.cookiesEarned > 100000)
 			// 	payoff += .0032916 * 3228721333325.41 // chain cookie (average)
@@ -122,8 +153,12 @@ function everything() {
 	}
 
 	/* Measure true CPS, including golden cookie contributions */
-	start = new Date();
-	oldCE = Game.cookiesEarned;
+	restartCpsAverage = function() {
+		start = new Date();
+		oldCE = Game.cookiesEarned;
+	}
+	restartCpsAverage();
+
 	cpsMeasure = function() {
 		var date = new Date();
 		avg = formatNum((Game.cookiesEarned - oldCE) * 1000 / (date.getTime() - start.getTime()));
@@ -169,35 +204,43 @@ function everything() {
 			name = t.name;
 			income = 0;
 
-			switch(id) {
+			switch(name) {
 			/* Golden cookie upgrades, Elder Pledge and Sacrificial Rolling Pins */
-			case ID_LUCKY_DAY: // Lucky Day
+			case 'Lucky day': // Lucky Day
 				income = goldenCookieCps(realCps, myCookies, true, Game.UpgradesById[ID_SERENDIPITY].bought, Game.UpgradesById[ID_GET_LUCKY].bought)
 				 - goldenCookieCps(realCps, myCookies, false, Game.UpgradesById[ID_SERENDIPITY].bought, Game.UpgradesById[ID_GET_LUCKY].bought);
 				income = Math.max(income, 0);
-				value = Game.UpgradesById[id].basePrice / income;
+				value = t.basePrice / income;
 				break;
-			case ID_SERENDIPITY: // Serendipity
+			case 'Serendipity': // Serendipity
 				income = goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, true, Game.UpgradesById[ID_GET_LUCKY].bought)
 				 - goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, false, Game.UpgradesById[ID_GET_LUCKY].bought);
 				income = Math.max(income, 0);
-				value = Game.UpgradesById[id].basePrice / income;
+				value = t.basePrice / income;
 				break;
-			case ID_GET_LUCKY: // Get Lucky
+			case 'Get lucky': // Get Lucky
 				income = goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, Game.UpgradesById[ID_SERENDIPITY].bought, true) 
 				- goldenCookieCps(realCps, myCookies, Game.UpgradesById[ID_LUCKY_DAY].bought, Game.UpgradesById[ID_SERENDIPITY].bought, false);
 				income = Math.max(income, 0);
-				value = Game.UpgradesById[id].basePrice / income;
+				value = t.basePrice / income;
 				break;
-			case ID_ELDER_PLEDGE:
-			case ID_SACRIFICIAL_ROLLING_PINS:
+			case 'Elder Pledge':
+			case 'Sacrificial rolling pins':
 				value = Number.MIN_VALUE;
+				break;
+			case 'Plastic mouse':
+			case 'Iron mouse':
+			case 'Titanium mouse':
+			case 'Adamantium mouse':
+			case 'Unobtainium mouse':
+				income = (realCps - mouseCps) * 0.01;
+				value = t.basePrice / income;
 				break;
 			default:
 			   	// Instead of showing the tooltip and regexping it we call Cookie Monster's internal computation functions to get the income
 				value = Get_True_CPI(id, "up");
 				for (var s = 0; s < upgrade_count; s++) {
-	            	if (_cup(s, t.id, false)) {
+	            	if (_cup(s, t.id, true)) {
 		                income = Manage_Tooltip(s, t.id, false, true);
 	                	break;
             		}
@@ -209,7 +252,7 @@ function everything() {
 				savedIncome = income;
 				min = value;
 				savedPrice = t.basePrice;
-				savedTime = Seconds_Left(t.id, "up");
+				savedTime = My_Seconds_Left(t.id, "up");
 			}
 	    });
 
@@ -234,7 +277,7 @@ function everything() {
 				else
 					waitTime = 0.25; // check faster to use up bank faster if we have surplus
 			else 
-				waitTime = Math.min(Math.max(savedTime / 2.0, 0.5), 1800); // check at least once every 30 minutes
+				waitTime = Math.min(Math.max(savedTime / 2.0, 0.5), 300); // check at least once every 30 minutes
 			console.log( formatNum(myCookies - savedPrice) + " remaining, need more than " + formatNum(reqBank) + "\t will buy [" + savedObject.id + "] " + savedObject.name + ": " + willBuy + ";\tChecking again in " + formatTime(waitTime, null));
 			clearTimeout(cheatyBuyTimeout); // just in case we want to restart the timer, for instance, some big change happened
 			cheatyBuyTimeout = setTimeout(function() { cheatyBuy(); }, waitTime*1000);
@@ -250,6 +293,12 @@ function everything() {
 		buyElderPledgeTimeout = setTimeout(function() { buyElderPledge(); }, Game.pledgeT / Game.fps);
 	}
 	buyElderPledge();
+
+	autoClick = function() {
+		Game.ClickCookie();
+		autoClickTimeout = setTimeout(autoClick, 1000 / avgClicksPS );
+	}
+	autoClick();
 
 }
 
